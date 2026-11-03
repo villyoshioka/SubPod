@@ -1,0 +1,69 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.project
+.settings/
+.buildpath
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.cache
+
+# WordPress specific
+wp-config.php
+.htaccess
+
+# Node modules (if ever needed)
+node_modules/
+
+# Composer (if ever needed)
+/vendor/
+composer.lock
+
+# Build files
+*.zip
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Claude Code
+.claude/
+CLAUDE.md
+AGENTS.md
+
+# Kilo
+.kilo/
+
+# Internal documentation
+VERSIONING.md
+DEVELOPMENT.md
+CLAUDE.md

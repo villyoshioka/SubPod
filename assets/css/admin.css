@@ -1,0 +1,102 @@
+/* Sub Pod 管理画面スタイル（プラグイン固有） */
+/* 共通スタイルは admin-fw.css (Nautilus Admin UI) を参照 */
+
+#sub-pod-message .notice {
+	margin-left: 0;
+	margin-right: 0;
+}
+
+.sub-pod-beta-prompt {
+	margin: 10px 0;
+}
+
+.sub-pod-beta-prompt input[type="password"] {
+	margin-right: 10px;
+	width: 200px;
+}
+
+/* 保存先セクションの中に置くので、区切り線は付けず、左端も入力欄に揃える */
+.nau-accordion-content .nau-form-actions {
+	padding-left: 0;
+	border-top: none;
+}
+
+/* 警告帯はアコーディオンの幅いっぱいに広げる(-16px は .nau-accordion-content の左右の余白分) */
+.nau-accordion-content .notice.inline {
+	display: block;
+	box-sizing: border-box;
+	width: auto;
+	margin-left: -16px;
+	margin-right: -16px;
+}
+
+@media screen and (max-width: 782px) {
+	.nau-accordion-content .notice.inline {
+		margin-left: -12px;
+		margin-right: -12px;
+	}
+}
+
+@media screen and (max-width: 480px) {
+	.nau-accordion-content .notice.inline {
+		margin-left: -10px;
+		margin-right: -10px;
+	}
+}
+
+/* 見出しの下の余白に自前の余白が足されないようにする。見出しのフォーカス枠に重なるので、マイナスにはしない */
+.nau-accordion-content > .notice.inline:first-child {
+	margin-top: 0;
+}
+
+.sub-pod-selected-file {
+	margin: 0 0 12px;
+	overflow-wrap: anywhere;
+}
+
+.sub-pod-secret-status {
+	margin-left: 8px;
+	color: var(--nau-color-success);
+}
+
+.sub-pod-progress {
+	margin-top: 16px;
+}
+
+.sub-pod-progress-header {
+	display: flex;
+	align-items: center;
+	gap: 15px;
+	margin-bottom: 8px;
+}
+
+.sub-pod-progress-bar-wrapper {
+	background: #f0f0f1;
+	height: 20px;
+	border-radius: 10px;
+	overflow: hidden;
+	flex: 1;
+	position: relative;
+}
+
+.sub-pod-progress-bar {
+	background: var(--wp-admin-theme-color);
+	height: 100%;
+	width: 0;
+	transition: width 0.3s ease;
+}
+
+.sub-pod-progress-percentage {
+	color: #1d2327;
+	font-weight: 600;
+	font-size: 14px;
+	min-width: 45px;
+	text-align: right;
+}
+
+.sub-pod-progress-status {
+	font-size: 14px;
+	font-weight: 600;
+	color: #1d2327;
+	line-height: 1.5;
+}
