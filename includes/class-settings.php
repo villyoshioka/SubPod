@@ -13,6 +13,7 @@ class SP_Settings {
 	private const string OPTION = 'sp_settings';
 	private const string CIPHER = 'aes-256-gcm';
 	private const int MIN_PASSWORD_LENGTH = 12;
+	private const string INSTALL_GUARD_MARK = 'Sub Pod install guard';
 	private const string BETA_PASSWORD_HASH = '3f330cbb065e912aaa5611806f1b0183298ccf065d29931a85426b46802832d4';
 
 	private static ?string $work_root = null;
@@ -369,6 +370,46 @@ class SP_Settings {
 		}
 		$job = self::work_root() . '/restore';
 		return is_dir( $job . '/rollback' ) || is_file( $job . '/rollback.sql' ) ? $job : null;
+	}
+
+	/**
+	 * インストール画面と更新画面を塞ぐファイルの場所
+	 *
+	 * WordPress はこれらの画面を開くときに最初に読み込む。どちらもメンテナンスモードの対象外なので、
+	 * テーブルがない間に開かれると、誰でも管理者を作れてしまう。
+	 */
+	public static function install_guard_path(): string {
+		return trailingslashit( WP_CONTENT_DIR ) . 'install.php';
+	}
+
+	public static function is_install_guard( string $path ): bool {
+		return 'install.php' === basename( $path ) && is_file( $path ) && str_contains( (string) file_get_contents( $path, false, null, 0, 256 ), self::INSTALL_GUARD_MARK );
+	}
+
+	public static function write_install_guard(): bool {
+		// 塞ぐのはインストール画面と更新画面だけ。ほかのプラグインのテーブル作成などでも読み込まれるので、それは止めない
+		$guard = "<?php\n// " . self::INSTALL_GUARD_MARK . ": removed when the restore ends. If a restore was cut off, put the site back and delete this file.\n"
+			. "if ( wp_installing() ) {\n"
+			. "\tif ( ! headers_sent() ) {\n\t\theader( 'HTTP/1.1 503 Service Unavailable' );\n\t\theader( 'Content-Type: text/html; charset=utf-8' );\n\t}\n"
+			. "\texit( '<!doctype html><meta charset=\"utf-8\"><title>メンテナンス中</title><p>このサイトは復元の途中です。しばらく経っても終わらないときは、サイトを元に戻してから wp-content/install.php を削除してください。</p>' );\n"
+			. "}\n";
+		return false !== file_put_contents( self::install_guard_path(), $guard );
+	}
+
+	/**
+	 * 塞ぐファイルを消す
+	 *
+	 * @param bool $restore_original 退避しておいた、もともとの install.php を戻す
+	 */
+	public static function remove_install_guard( bool $restore_original = true ): void {
+		$guard = self::install_guard_path();
+		if ( self::is_install_guard( $guard ) ) {
+			@unlink( $guard ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		}
+		$original = self::work_root() . '/restore/original-install.php';
+		if ( $restore_original && self::is_work_root_safe() && is_file( $original ) && ! file_exists( $guard ) ) {
+			@rename( $original, $guard ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		}
 	}
 
 	/** リンクの先はたどらず、リンク自体だけを消す */

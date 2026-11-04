@@ -18,6 +18,7 @@ class SP_Restore {
 	private const int DISK_MARGIN = 104857600;
 	private const string MOVED_NOTICE = '別の環境へ復元したので、保存先の Cloudflare R2 と特定のディレクトリをオフにしました。使うときは Sub Pod の設定を確認してください。';
 	private const int MAINTENANCE_REFRESH = 60;
+	private const int GUARD_GRACE = 2;
 
 	/** @var callable|null 長い処理の途中で定期的に呼ぶ */
 	private static $heartbeat = null;
@@ -42,6 +43,7 @@ class SP_Restore {
 	private int $original_config_mode = 0644;
 	private string $work_fallback = '';
 	private int $maintenance_at = 0;
+	private bool $install_guarded = false;
 
 	/** @var string[] 元の状態に戻しても戻らないトリガー */
 	private array $lost_triggers = array();
@@ -76,6 +78,7 @@ class SP_Restore {
 	public static function discard_leftover(): void {
 		SP_Backup::acquire_lock();
 		try {
+			SP_Settings::remove_install_guard();
 			SP_Settings::remove_work( 'restore' );
 		} finally {
 			SP_Backup::release_lock();
@@ -180,6 +183,7 @@ class SP_Restore {
 				$this->restore_database( $staging, $manifest, $new_urls, $tracker );
 			}
 
+			$this->start_install_guard();
 			$tracker->begin( 'swap', 'ファイルを入れ替えています' );
 			$this->swap_files( $staging, $manifest );
 			$this->swap_config( $config );
@@ -187,6 +191,9 @@ class SP_Restore {
 			// 成功したら、ダウンロード待ちも含めて作業用フォルダをすべて片付ける
 			$this->swapping = false;
 			self::reset_opcache();
+			// 古い wp-config.php を読み込み済みのリクエストは、テーブルがないと判断してインストール画面を出す。それが終わるのを待つ
+			sleep( self::GUARD_GRACE );
+			$this->finish_install_guard();
 			$this->end_maintenance();
 			foreach ( array( 'restore', 'upload', 'backup', 'download' ) as $name ) {
 				SP_Settings::remove_work( $name );
@@ -235,12 +242,55 @@ class SP_Restore {
 	 */
 	private function start_maintenance(): void {
 		$this->maintenance_at = time();
-		@file_put_contents( self::maintenance_path(), '<?php $upgrading = ' . $this->maintenance_at . ';' ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		// 整数だと、時刻を推測するだけでメンテナンス画面を通り抜けられる(WordPress の更新時の確認用の仕組み)ので、文字列にする
+		@file_put_contents( self::maintenance_path(), "<?php \$upgrading = '" . $this->maintenance_at . "';" ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 	}
 
 	private function refresh_maintenance(): void {
 		if ( $this->maintenance_at > 0 && time() - $this->maintenance_at >= self::MAINTENANCE_REFRESH ) {
 			$this->start_maintenance();
+		}
+	}
+
+	/**
+	 * テーブルやファイルがない状態になる前に、インストール画面と更新画面を塞ぐ
+	 *
+	 * プロセスごと落ちたときも残して、閉じたままにする。もともと install.php があれば退避して戻す。
+	 */
+	private function start_install_guard(): void {
+		if ( $this->install_guarded ) {
+			return;
+		}
+		$path = SP_Settings::install_guard_path();
+		if ( is_file( $path ) && ! SP_Settings::is_install_guard( $path ) && ! rename( $path, $this->job . '/original-install.php' ) ) {
+			throw new RuntimeException( 'wp-content の install.php を退避できませんでした。' );
+		}
+		if ( ! SP_Settings::write_install_guard() ) {
+			throw new RuntimeException( 'wp-content に書き込めません。' );
+		}
+		$this->install_guarded = true;
+	}
+
+	/** 復元が終わったので塞ぐのをやめて、バックアップに入っていた install.php を置く */
+	private function finish_install_guard(): void {
+		SP_Settings::remove_install_guard( false );
+		$incoming = $this->job . '/incoming-install.php';
+		if ( is_file( $incoming ) ) {
+			rename( $incoming, SP_Settings::install_guard_path() );
+		}
+	}
+
+	/** 塞いでいる間は置けないので、バックアップに入っていた install.php を取り分けておく */
+	private function set_aside_incoming_install( string $staging ): void {
+		$root    = trailingslashit( wp_normalize_path( (string) realpath( ABSPATH ) ) );
+		$content = wp_normalize_path( (string) realpath( WP_CONTENT_DIR ) );
+		$name    = str_starts_with( $content, $root ) ? substr( $content, strlen( $root ) ) : 'wp-content';
+		foreach ( array( $staging . '/content/install.php', $staging . '/files/' . $name . '/install.php' ) as $incoming ) {
+			if ( SP_Settings::is_install_guard( $incoming ) ) {
+				unlink( $incoming );
+			} elseif ( is_file( $incoming ) && ! rename( $incoming, $this->job . '/incoming-install.php' ) ) {
+				throw new RuntimeException( 'ファイルの入れ替えに失敗しました: ' . $incoming );
+			}
 		}
 	}
 
@@ -607,6 +657,7 @@ class SP_Restore {
 
 		$tracker->begin( 'import', 'データベースを復元しています', (int) filesize( $staging . '/' . SP_Backup::DATABASE ) );
 		$this->restored_tables  = $manifest['tables'];
+		$this->start_install_guard();
 		$this->database_touched = true;
 		// 今のテーブルが残っていると、外部キーの名前や型がバックアップとぶつかる。失敗したら rollback.sql から戻す
 		SP_Database::drop_tables( $this->current_tables );
@@ -811,6 +862,7 @@ class SP_Restore {
 		// メンテナンスの印は入れ替えの対象にしない。バックアップに入っていても持ち込まない
 		@unlink( $staging . '/files/.maintenance' ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 		self::align_content_layout( $staging );
+		$this->set_aside_incoming_install( $staging );
 
 		$this->swap_tree( untrailingslashit( ABSPATH ), $staging . '/files', $rollback . '/files' );
 		if ( is_dir( $staging . '/content' ) ) {
@@ -855,6 +907,7 @@ class SP_Restore {
 		// Windows の realpath は \ を返すので、比べる前に / へ揃える
 		$work         = wp_normalize_path( (string) realpath( SP_Settings::work_root() ) );
 		$content_real = wp_normalize_path( (string) realpath( WP_CONTENT_DIR ) );
+		$guard        = $content_real . '/install.php';
 		$descend      = array();
 		foreach ( self::list_dir( $live ) as $entry ) {
 			$path = $live . '/' . $entry;
@@ -867,11 +920,12 @@ class SP_Restore {
 				if ( '' !== $real && $real === $content_real ) {
 					continue;
 				}
-			} elseif ( '' !== $work && '' !== $real ) {
-				if ( $real === $work ) {
+			} elseif ( '' !== $real ) {
+				if ( $real === $work || $real === $guard ) {
 					continue;
 				}
-				if ( str_starts_with( $work, $real . '/' ) ) {
+				// 入れ替えの間も残すものを含むフォルダは、丸ごと動かさない
+				if ( ( '' !== $work && str_starts_with( $work, $real . '/' ) ) || str_starts_with( $guard, $real . '/' ) ) {
 					$descend[] = $entry;
 					continue;
 				}
@@ -970,7 +1024,9 @@ class SP_Restore {
 		self::reset_opcache();
 		$this->end_maintenance();
 
+		// 戻せなかったときは、閉じたままにする
 		if ( $ok ) {
+			SP_Settings::remove_install_guard();
 			SP_Settings::remove_directory( $this->job );
 		}
 		return $ok;

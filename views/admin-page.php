@@ -142,7 +142,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 				</div>
 				<?php endif; ?>
 
-				<div class="nau-form-actions">
+				<div class="nau-form-group">
 					<button type="submit" class="button button-primary">設定を保存</button>
 				</div>
 			</div>

@@ -5,7 +5,7 @@
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![WordPress](https://img.shields.io/badge/WordPress-7.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.5.12%2B-blue.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/Version-1.0.0-green.svg)](https://github.com/villyoshioka/SubPod/releases)
+[![Version](https://img.shields.io/badge/Version-1.0.1-green.svg)](https://github.com/villyoshioka/SubPod/releases)
 
 > **注意**: **このプラグインについて、コードは公開していますが、サポートは行っていません。**
 
@@ -56,6 +56,7 @@ R2 のバックアップは、R2 のダッシュボードからダウンロー�
 - 復元すると、今のサイトはデータベースもファイルも置き換わります。バックアップにはプラグインのコードも含まれるので、信頼できるファイルだけを使ってください。
 - ダウンロードと特定のディレクトリのバックアップは暗号化されず、R2 のキーを含むサイトの秘密情報を取り出せる状態で入ります。ファイルの扱いに注意してください。
 - R2 の暗号化パスワードは、必ず手元に控えてください。忘れると、R2 のバックアップは戻せません。
+- バックアップには WordPress 本体も含まれます。古いバックアップを戻すと本体も古くなるので、戻したあとは WordPress を更新してください。
 - Sub Pod は履歴を持ちません。古いバックアップの整理は、保存先で行ってください。
 - 次のものはバックアップに含まれません。実行後に表示される案内やログで確認できます。
   - シンボリックリンクの先のファイル
@@ -64,6 +65,7 @@ R2 のバックアップは、R2 のダッシュボードからダウンロー�
 - 異なるデータベースシステムへの復元はできません。
 - 別の環境へ復元すると、元の環境と同じ場所へ送らないよう、保存先の Cloudflare R2 と特定のディレクトリをオフにします。使うときは設定を確認してください。
 - 復元の間、今のサイトは OS の一時フォルダへ退避します。途中で PC が落ちると、再起動で消えて元に戻せないことがあります。大事なサイトは先にバックアップを取ってください。
+- 復元が途中で止まると、インストール画面と更新画面は閉じたままになります。手でサイトを元に戻したあと、`wp-content/install.php` を削除してください。
 
 ---
 

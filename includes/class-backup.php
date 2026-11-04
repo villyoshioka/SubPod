@@ -441,7 +441,7 @@ class SP_Backup {
 				if ( false === $work || realpath( $path ) !== $work ) {
 					$this->add_tree( $writer, $path, $name, $tick );
 				}
-			} elseif ( is_file( $path ) && 'files/' . self::CONFIG !== $name && ! isset( $this->skip_names[ $name ] ) ) {
+			} elseif ( is_file( $path ) && 'files/' . self::CONFIG !== $name && ! isset( $this->skip_names[ $name ] ) && ! SP_Settings::is_install_guard( $path ) ) {
 				self::assert_restorable( $name, $path );
 				if ( $writer->add_file( $name, $path ) ) {
 					++$this->file_count;
@@ -615,6 +615,7 @@ class SP_Backup {
 		}
 
 		if ( null === SP_Settings::leftover_path() ) {
+			SP_Settings::remove_install_guard();
 			SP_Settings::remove_work( 'restore' );
 		}
 		self::release_lock();

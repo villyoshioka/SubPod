@@ -15,12 +15,6 @@
 	width: 200px;
 }
 
-/* 保存先セクションの中に置くので、区切り線は付けず、左端も入力欄に揃える */
-.nau-accordion-content .nau-form-actions {
-	padding-left: 0;
-	border-top: none;
-}
-
 /* 警告帯はアコーディオンの幅いっぱいに広げる(-16px は .nau-accordion-content の左右の余白分) */
 .nau-accordion-content .notice.inline {
 	display: block;

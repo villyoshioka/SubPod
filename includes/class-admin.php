@@ -107,6 +107,10 @@ class SP_Admin {
 			);
 		}
 
+		if ( SP_Settings::is_install_guard( SP_Settings::install_guard_path() ) && ! SP_Backup::is_running() ) {
+			echo '<div class="notice notice-error"><p>Sub Pod: 前回の復元が完了しなかったので、インストール画面と更新画面を閉じています。サイトが正常なら <code>wp-content/install.php</code> を削除してください。</p></div>';
+		}
+
 		$skipped = SP_Backup::skipped_links();
 		if ( null !== $skipped && ! empty( $skipped['objects'] ) ) {
 			printf(

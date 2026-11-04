@@ -18,6 +18,7 @@ if ( $has_leftover ) {
 		SP_Settings::remove_work( $name );
 	}
 } else {
+	SP_Settings::remove_install_guard();
 	SP_Settings::remove_work();
 }
 wp_clear_scheduled_hook( 'sp_cleanup_download' );
