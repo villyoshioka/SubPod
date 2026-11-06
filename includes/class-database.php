@@ -921,35 +921,36 @@ class SP_Database {
 		$order  = $primary ? ' ORDER BY ' . implode( ', ', $primary ) : '';
 		$head   = "INSERT INTO {$quoted} ({$list}) VALUES ";
 
-		// ponytail: OFFSET は巨大テーブルで遅くなる。ローカルで問題になったら主キー範囲での取得に変える
-		$offset = 0;
-		do {
-			$rows = $wpdb->get_results(
-				$wpdb->prepare( "SELECT {$select} FROM {$quoted}{$order} LIMIT %d OFFSET %d", self::BATCH_ROWS, $offset ), // phpcs:ignore WordPress.DB
-				ARRAY_N
-			);
-			if ( null === $rows || '' !== $wpdb->last_error ) {
-				throw new RuntimeException( 'データベースの読み取りに失敗しました: ' . $table );
-			}
-
+		// 大きい行が多くてもメモリに抱え込まないよう、まとめて受け取らずに 1 行ずつ読む。
+		// 読み終えるまで同じ接続で別の問い合わせはできないので、$tick は DB に触らない前提(進捗の送信だけ)
+		$result = mysqli_query( $wpdb->dbh, "SELECT {$select} FROM {$quoted}{$order}", MYSQLI_USE_RESULT );
+		if ( ! $result instanceof mysqli_result ) {
+			throw new RuntimeException( 'データベースの読み取りに失敗しました: ' . $table );
+		}
+		try {
 			$values = '';
-			foreach ( $rows as $row ) {
+			$count  = 0;
+			while ( $row = $result->fetch_row() ) {
 				$encoded = '(' . implode( ',', array_map( array( self::class, 'encode_value' ), $row, $kinds ) ) . ')';
 				if ( '' !== $values && strlen( $values ) + strlen( $encoded ) > self::MAX_STATEMENT ) {
 					self::write_statement( $out, $head . $values );
 					$values = '';
 				}
 				$values .= ( '' === $values ? '' : ',' ) . $encoded;
+				if ( 0 === ++$count % self::BATCH_ROWS && $tick ) {
+					$tick();
+				}
+			}
+			// 途中で読み取りが失敗しても、終わりと同じように抜けてくる
+			if ( mysqli_errno( $wpdb->dbh ) ) {
+				throw new RuntimeException( 'データベースの読み取りに失敗しました: ' . $table );
 			}
 			if ( '' !== $values ) {
 				self::write_statement( $out, $head . $values );
 			}
-
-			$offset += self::BATCH_ROWS;
-			if ( $tick ) {
-				$tick();
-			}
-		} while ( count( $rows ) === self::BATCH_ROWS );
+		} finally {
+			$result->free();
+		}
 	}
 
 	/** @param string $kind text / binary / hex(すでに 16 進数の文字列) */

@@ -21,6 +21,7 @@
 		notice.appendChild(paragraph);
 		box.replaceChildren(notice);
 		box.scrollIntoView({ block: 'nearest' });
+		return notice;
 	}
 
 	function showConfirm(message, onConfirm) {
@@ -270,13 +271,43 @@
 		});
 	}
 
+	// 保存できないときの理由を返す。文字数と繰り返しはサーバーでも確かめる
+	function passwordProblem(password, confirm) {
+		if (password === '') {
+			return '';
+		}
+		if (password !== confirm) {
+			return '暗号化パスワードと確認用の入力が一致しません。';
+		}
+		// 判定に使う辞書は後から読み込まれる
+		if (typeof window.zxcvbn !== 'function') {
+			return 'パスワードの強さを確認する準備ができていません。少し待ってから、もう一度保存してください。';
+		}
+		var disallowed = wp.passwordStrength.userInputDisallowedList();
+		// 0〜2 は WordPress の画面で「非常に脆弱」「脆弱」と表示される強さ
+		if (wp.passwordStrength.meter(password, disallowed, confirm) < 3) {
+			return '暗号化パスワードが弱すぎます。よくある単語や並びを避けて、長めにしてください。';
+		}
+		return '';
+	}
+
 	function saveSettings(event) {
 		event.preventDefault();
 		var form = event.currentTarget;
 
+		var problem = passwordProblem(form.elements.password.value, form.elements.password_confirm.value);
+		if (problem) {
+			showMessage('error', problem);
+			return;
+		}
+
 		postJson('sp_save_settings', new FormData(form)).then(function (data) {
-			showMessage('success', data.message);
-			['r2_secret_key', 'r2_password'].forEach(function (name) {
+			// 保存できた時点でパスワードは設定済みなので、未設定の警告も一緒に消す
+			$('.sub-pod-password-notice').remove();
+			$(showMessage('success', data.message)).delay(3000).fadeOut(motionDurationLong, function () {
+				$(this).remove();
+			});
+			['r2_secret_key', 'password'].forEach(function (name) {
 				var field = form.elements[name];
 				if (field.value !== '') {
 					field.value = '';
@@ -284,6 +315,7 @@
 					$(field).siblings('.sub-pod-secret-status').prop('hidden', false);
 				}
 			});
+			form.elements.password_confirm.value = '';
 		}).catch(function (error) {
 			showMessage('error', error.message);
 		});
@@ -324,8 +356,8 @@
 
 	// ここでは選ぶだけで、送るのは「復元する」を押してから
 	function setRestoreFile(file) {
-		if (file && !/\.(gz|enc)$/i.test(file.name)) {
-			showMessage('error', 'バックアップファイル(.tar.gz または .enc)を選んでください。');
+		if (file && !/\.enc$/i.test(file.name)) {
+			showMessage('error', '暗号化されたバックアップファイル(.enc)を選んでください。');
 			return;
 		}
 
@@ -386,6 +418,10 @@
 			showMessage('error', 'バックアップファイルを選んでください。');
 			return;
 		}
+		if (encryptionField.value === '') {
+			showMessage('error', '暗号化パスワードを入力してください。');
+			return;
+		}
 		if (adminField.value === '') {
 			showMessage('error', '今のログインパスワードを入力してください。');
 			return;
@@ -414,7 +450,6 @@
 			body.append('admin_password', adminPassword);
 			body.append('encryption_password', encryptionPassword);
 			body.append('total', file.size);
-			body.append('file_name', file.name);
 			return post('sp_restore', body);
 		}).then(function (response) {
 			return readStream(response, function (message, percent) {

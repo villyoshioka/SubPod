@@ -63,7 +63,8 @@ class SP_Admin {
 
 		wp_enqueue_style( 'nau-admin-fw', SP_PLUGIN_URL . 'assets/css/admin-fw.css', [], SP_VERSION );
 		wp_enqueue_style( 'sub-pod-admin', SP_PLUGIN_URL . 'assets/css/admin.css', [ 'nau-admin-fw' ], SP_VERSION );
-		wp_enqueue_script( 'sub-pod-admin', SP_PLUGIN_URL . 'assets/js/admin.js', [ 'jquery' ], SP_VERSION, true );
+		// 暗号化パスワードの強さは、WordPress のプロフィール画面と同じ判定で見る
+		wp_enqueue_script( 'sub-pod-admin', SP_PLUGIN_URL . 'assets/js/admin.js', [ 'jquery', 'password-strength-meter' ], SP_VERSION, true );
 		wp_localize_script(
 			'sub-pod-admin',
 			'subPodAdmin',
@@ -125,6 +126,15 @@ class SP_Admin {
 				'<div class="notice notice-warning"><p>Sub Pod: 前回のバックアップに含まれていないリンクが %d 件あります。リンク先のファイルは別に保管してください: %s</p></div>',
 				(int) $skipped['count'],
 				esc_html( $names )
+			);
+		}
+
+		if ( null === SP_Settings::password() ) {
+			$carry_pod = defined( 'CP_VERSION' ) && SP_Settings::get_settings()['cp_backup'] ? 'Carry Pod の静的化は、バックアップなしで行われます。' : '';
+			printf(
+				'<div class="notice notice-warning sub-pod-password-notice"><p>Sub Pod: 暗号化パスワードが設定されていないか読み取れないため、バックアップできません。%s<a href="%s">Sub Pod の画面で設定する</a></p></div>',
+				esc_html( $carry_pod ),
+				esc_url( admin_url( 'tools.php?page=sub-pod' ) )
 			);
 		}
 
@@ -214,7 +224,7 @@ class SP_Admin {
 	public function ajax_save_settings(): void {
 		$this->authorize();
 
-		$fields = [ 'dest_download', 'dest_directory', 'dest_r2', 'cp_backup', 'directory', 'r2_account_id', 'r2_bucket', 'r2_access_key', 'r2_secret_key', 'r2_password' ];
+		$fields = [ 'dest_download', 'dest_directory', 'dest_r2', 'cp_backup', 'directory', 'r2_account_id', 'r2_bucket', 'r2_access_key', 'r2_secret_key', 'password', 'password_confirm' ];
 		$input  = [];
 		foreach ( $fields as $field ) {
 			$input[ $field ] = isset( $_POST[ $field ] ) ? wp_unslash( (string) $_POST[ $field ] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
@@ -356,13 +366,12 @@ class SP_Admin {
 			wp_send_json_error( [ 'message' => 'ファイルが最後までアップロードされていません。もう一度やり直してください。' ] );
 		}
 
-		$password  = isset( $_POST['encryption_password'] ) ? wp_unslash( (string) $_POST['encryption_password'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-		$file_name = isset( $_POST['file_name'] ) ? sanitize_file_name( wp_unslash( (string) $_POST['file_name'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		$password = isset( $_POST['encryption_password'] ) ? wp_unslash( (string) $_POST['encryption_password'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 
 		$this->start_stream();
 		try {
 			$restore   = new SP_Restore();
-			$login_url = $restore->run( $password, str_ends_with( strtolower( $file_name ), '.enc' ), [ $this, 'send_progress' ], [ $this, 'heartbeat' ] );
+			$login_url = $restore->run( $password, [ $this, 'send_progress' ], [ $this, 'heartbeat' ] );
 
 			// 読み込み済みの古い内容を、終了処理が復元後のデータベースへ書き戻さないようにする
 			remove_all_actions( 'shutdown' );
@@ -482,7 +491,7 @@ class SP_Admin {
 		ignore_user_abort( true );
 		@set_time_limit( 0 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 
-		header( 'Content-Type: application/gzip' );
+		header( 'Content-Type: application/octet-stream' );
 		header( 'Content-Disposition: attachment; filename="' . basename( $path ) . '"' );
 		header( 'Content-Length: ' . filesize( $path ) );
 		header( 'Cache-Control: no-store' );

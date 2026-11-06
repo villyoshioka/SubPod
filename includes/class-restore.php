@@ -86,12 +86,11 @@ class SP_Restore {
 	}
 
 	/**
-	 * @param bool          $expect_encrypted 暗号化ファイルとして渡されたか
-	 * @param callable|null $progress         fn( string $message, int $percent ): void
-	 * @param callable|null $tick             長い処理の途中で定期的に呼ぶ
+	 * @param callable|null $progress fn( string $message, int $percent ): void
+	 * @param callable|null $tick     長い処理の途中で定期的に呼ぶ
 	 * @return string 復元後のログイン画面の URL
 	 */
-	public function run( string $password, bool $expect_encrypted = false, ?callable $progress = null, ?callable $tick = null ): string {
+	public function run( string $password, ?callable $progress = null, ?callable $tick = null ): string {
 		SP_Backup::acquire_lock();
 		$started = false;
 		try {
@@ -108,7 +107,14 @@ class SP_Restore {
 				throw new RuntimeException( 'アップロードされたファイルが見つかりません。' );
 			}
 
-			$encrypted = SP_Crypto::is_encrypted( $upload );
+			// 暗号化されていないファイルは、すり替えられたものかもしれないので受け付けない
+			if ( ! SP_Crypto::is_encrypted( $upload ) ) {
+				throw new RuntimeException( '暗号化されていないファイルは復元できません。暗号化されたバックアップ(.enc)を選んでください。' );
+			}
+			if ( '' === $password ) {
+				throw new RuntimeException( '暗号化パスワードを入力してください。' );
+			}
+
 			$sqlite    = SP_Database::is_sqlite();
 			$heartbeat = function () use ( $tick ): void {
 				if ( $tick ) {
@@ -120,7 +126,7 @@ class SP_Restore {
 				$progress,
 				$heartbeat,
 				array(
-					'decrypt'  => $encrypted ? 10 : 0,
+					'decrypt'  => 10,
 					'extract'  => $sqlite ? 70 : 40,
 					'rollback' => $sqlite ? 0 : 10,
 					'import'   => $sqlite ? 0 : 30,
@@ -131,18 +137,9 @@ class SP_Restore {
 			$tick            = array( $tracker, 'tick' );
 			self::$heartbeat = $tick;
 
-			$archive = $upload;
-			if ( $encrypted ) {
-				if ( '' === $password ) {
-					throw new RuntimeException( 'このファイルは暗号化されています。暗号化パスワードを入力してください。' );
-				}
-				$tracker->begin( 'decrypt', '復号しています', (int) filesize( $upload ) );
-				$archive = $this->job . '/archive.tar.gz';
-				SP_Crypto::decrypt_file( $upload, $archive, $password, $tick );
-			} elseif ( '' !== $password || $expect_encrypted ) {
-				// すり替えられた暗号化なしのファイルを、パスワードで守られたものとして受け入れない
-				throw new RuntimeException( '暗号化されていないファイルです。パスワードで保護されたファイルとして復元することはできません。' );
-			}
+			$tracker->begin( 'decrypt', '復号しています', (int) filesize( $upload ) );
+			$archive = $this->job . '/archive.tar.gz';
+			SP_Crypto::decrypt_file( $upload, $archive, $password, $tick );
 
 			$tracker->begin( 'extract', 'ファイルを展開して検査しています', SP_Tar_Reader::estimate_size( $archive ) );
 			$staging = $this->job . '/staging';

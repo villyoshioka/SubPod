@@ -3,7 +3,7 @@
  * Plugin Name: Sub Pod
  * Plugin URI: https://github.com/villyoshioka/SubPod
  * Description: WordPressサイト全体をバックアップ・復元するプラグイン
- * Version: 1.0.1
+ * Version: 1.1.0
  * Requires at least: 7.0
  * Tested up to: 7.1
  * Requires PHP: 8.5.12
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SP_VERSION', '1.0.1' );
+define( 'SP_VERSION', '1.1.0' );
 define( 'SP_PLUGIN_FILE', __FILE__ );
 define( 'SP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

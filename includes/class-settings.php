@@ -19,7 +19,7 @@ class SP_Settings {
 	private static ?string $work_root = null;
 
 	public static function get_settings(): array {
-		return wp_parse_args(
+		$settings = wp_parse_args(
 			(array) get_option( self::OPTION, array() ),
 			array(
 				'dest_download'  => true,
@@ -31,15 +31,27 @@ class SP_Settings {
 				'r2_bucket'      => '',
 				'r2_access_key'  => '',
 				'r2_secret_key'  => '',
-				'r2_password'    => '',
+				'password'       => '',
 			)
 		);
+		// 1.0 では R2 の設定の中に持っていた
+		if ( '' === $settings['password'] && ! empty( $settings['r2_password'] ) ) {
+			$settings['password'] = $settings['r2_password'];
+		}
+		unset( $settings['r2_password'] );
+		return $settings;
+	}
+
+	/** 暗号化パスワード。未設定か、ソルトが変わって読み出せなければ null */
+	public static function password(): ?string {
+		return self::decrypt_secret( self::get_settings()['password'] );
 	}
 
 	/**
 	 * 設定を検証して保存する
 	 *
 	 * R2 のシークレットと暗号化パスワードは、空のまま送られたら今の値を残す。
+	 * 暗号化パスワードは打ち間違えると誰も復元できなくなるので、確認欄と一致したときだけ受け付ける。
 	 */
 	public static function save( array $input ): true|WP_Error {
 		$current = self::get_settings();
@@ -55,7 +67,7 @@ class SP_Settings {
 			'r2_bucket'      => trim( (string) ( $input['r2_bucket'] ?? '' ) ),
 			'r2_access_key'  => trim( (string) ( $input['r2_access_key'] ?? '' ) ),
 			'r2_secret_key'  => $current['r2_secret_key'],
-			'r2_password'    => $current['r2_password'],
+			'password'       => $current['password'],
 		);
 
 		if ( ! $settings['dest_download'] && ! $settings['dest_directory'] && ! $settings['dest_r2'] ) {
@@ -76,12 +88,22 @@ class SP_Settings {
 			$settings['r2_secret_key'] = self::encrypt_secret( $secret );
 		}
 
-		$password = (string) ( $input['r2_password'] ?? '' );
+		$password = (string) ( $input['password'] ?? '' );
 		if ( '' !== $password ) {
-			if ( strlen( $password ) < self::MIN_PASSWORD_LENGTH ) {
+			if ( (string) ( $input['password_confirm'] ?? '' ) !== $password ) {
+				return new WP_Error( 'password_mismatch', '暗号化パスワードと確認用の入力が一致しません。' );
+			}
+			if ( mb_strlen( $password, 'UTF-8' ) < self::MIN_PASSWORD_LENGTH ) {
 				return new WP_Error( 'weak_password', '暗号化パスワードは' . self::MIN_PASSWORD_LENGTH . '文字以上にしてください。' );
 			}
-			$settings['r2_password'] = self::encrypt_secret( $password );
+			// 同じ文字や同じ並びの繰り返しだけでできているもの(aaaa…、abcabc…)
+			if ( preg_match( '/^(.+?)\1+$/us', $password ) ) {
+				return new WP_Error( 'weak_password', '暗号化パスワードに、同じ文字や並びの繰り返しは使えません。' );
+			}
+			$settings['password'] = self::encrypt_secret( $password );
+		}
+		if ( null === self::decrypt_secret( $settings['password'] ) ) {
+			return new WP_Error( 'password', 'バックアップの暗号化パスワードを入力してください。' );
 		}
 
 		if ( $settings['dest_r2'] ) {
@@ -96,9 +118,6 @@ class SP_Settings {
 			}
 			if ( '' === $settings['r2_secret_key'] ) {
 				return new WP_Error( 'r2_secret', 'R2 のシークレットアクセスキーを入力してください。' );
-			}
-			if ( '' === $settings['r2_password'] ) {
-				return new WP_Error( 'r2_password', 'R2 に送るバックアップの暗号化パスワードを入力してください。' );
 			}
 		}
 

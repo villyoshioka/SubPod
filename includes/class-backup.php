@@ -48,6 +48,7 @@ class SP_Backup {
 	 *
 	 * Carry Pod は true 以外が返ると静的化を止める。失敗したときは理由が分かるよう WP_Error を返す。
 	 * 手動の静的化では $context に 'manual' が渡る。
+	 * 暗号化パスワードがないときは、バックアップだけ飛ばして静的化は続ける(管理画面の通知で伝える)。
 	 */
 	public static function on_static_generation( mixed $proceed, mixed $context = 'auto' ): mixed {
 		if ( true !== $proceed || ! SP_Settings::get_settings()['cp_backup'] ) {
@@ -55,7 +56,7 @@ class SP_Backup {
 		}
 
 		$destinations = SP_Settings::destinations( 'manual' !== $context );
-		if ( ! $destinations ) {
+		if ( ! $destinations || null === SP_Settings::password() ) {
 			return $proceed;
 		}
 
@@ -200,23 +201,25 @@ class SP_Backup {
 			'database' => SP_Database::is_sqlite() ? 0 : 10,
 			'archive'  => 60,
 			'verify'   => 10,
+			'encrypt'  => 5,
 		);
 		if ( in_array( 'directory', $destinations, true ) ) {
 			$stages['directory'] = 5;
 		}
 		if ( in_array( 'r2', $destinations, true ) ) {
-			$stages['encrypt'] = 5;
-			$stages['r2']      = 30;
+			$stages['r2'] = 30;
 		}
 		$tracker = new SP_Progress( $progress, $tick, $stages );
 		$tick    = array( $tracker, 'tick' );
 
-		$r2_password = null;
-		$r2_secret   = null;
+		$password = SP_Settings::password();
+		if ( null === $password ) {
+			throw new RuntimeException( '暗号化パスワードが設定されていないか、読み取れません。設定画面で入力してください。' );
+		}
+		$r2_secret = null;
 		if ( in_array( 'r2', $destinations, true ) ) {
-			$r2_password = SP_Settings::decrypt_secret( $settings['r2_password'] );
-			$r2_secret   = SP_Settings::decrypt_secret( $settings['r2_secret_key'] );
-			if ( null === $r2_password || null === $r2_secret ) {
+			$r2_secret = SP_Settings::decrypt_secret( $settings['r2_secret_key'] );
+			if ( null === $r2_secret ) {
 				throw new RuntimeException( 'R2 の設定を読み取れませんでした。設定画面でもう一度入力してください。' );
 			}
 		}
@@ -229,29 +232,30 @@ class SP_Backup {
 			SP_Settings::remove_work( 'backup' );
 			$job = SP_Settings::work_dir( 'backup' );
 
-			$name    = self::file_name();
-			$archive = $job . '/' . $name;
+			$archive = $job . '/' . self::file_name();
 			$this->create_archive( $archive, $tracker );
-			$size = (int) filesize( $archive );
+
+			// どの保存先にも暗号化したものだけを置く。暗号化前のファイルはすぐ消す
+			$tracker->begin( 'encrypt', '暗号化しています', (int) filesize( $archive ) );
+			$encrypted = $archive . '.enc';
+			SP_Crypto::encrypt_file( $archive, $encrypted, $password, $tick );
+			unlink( $archive );
+			$name = basename( $encrypted );
+			$size = (int) filesize( $encrypted );
 
 			if ( in_array( 'directory', $destinations, true ) ) {
-				$tracker->begin( 'directory', '保存先ディレクトリへコピーしています', (int) filesize( $archive ) );
-				$this->copy_to_directory( $archive, $settings['directory'], $name, $tick );
+				$tracker->begin( 'directory', '保存先ディレクトリへコピーしています', $size );
+				$this->copy_to_directory( $encrypted, $settings['directory'], $name, $tick );
 			}
 
 			if ( in_array( 'r2', $destinations, true ) ) {
-				$tracker->begin( 'encrypt', '暗号化しています', (int) filesize( $archive ) );
-				$encrypted = $archive . '.enc';
-				SP_Crypto::encrypt_file( $archive, $encrypted, $r2_password, $tick );
-
-				$tracker->begin( 'r2', 'R2 へ送信しています', (int) filesize( $encrypted ) );
+				$tracker->begin( 'r2', 'R2 へ送信しています', $size );
 				$r2 = new SP_R2( $settings['r2_account_id'], $settings['r2_bucket'], $settings['r2_access_key'], $r2_secret );
-				$r2->upload( $encrypted, $name . '.enc', $tick );
-				unlink( $encrypted );
+				$r2->upload( $encrypted, $name, $tick );
 			}
 
 			if ( in_array( 'download', $destinations, true ) ) {
-				$this->prepare_download( $archive, $name );
+				$this->prepare_download( $encrypted, $name );
 			}
 
 			$objects = SP_Database::is_sqlite() ? array() : SP_Database::unsupported_objects();

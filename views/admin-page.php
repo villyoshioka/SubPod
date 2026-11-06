@@ -62,7 +62,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 					<label>
 						<input type="checkbox" name="dest_download" value="1" <?php checked( $settings['dest_download'] ); ?>>
 						完了時にダウンロード
-						<?php echo $this->render_tooltip( '保存先は複数選べます。Sub Pod の中に履歴は持たないので、古いバックアップの整理は保存先で行ってください。<br>ダウンロードと特定のディレクトリのバックアップは暗号化されず、R2 のキーを含むサイトの秘密情報を取り出せる状態で入ります。ファイルの扱いに注意してください。<br>Carry Pod の自動実行ではダウンロードは使われません。保存先がこれだけのときは、バックアップなしで静的化します。' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+						<?php echo $this->render_tooltip( '保存先は複数選べます。Sub Pod の中に履歴は持たないので、古いバックアップの整理は保存先で行ってください。<br>どの保存先にも、下の暗号化パスワードで暗号化したファイルを置きます。<br>Carry Pod の自動実行ではダウンロードは使われません。保存先がこれだけのときは、バックアップなしで静的化します。' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 				</div>
 
 				<div class="nau-form-group">
@@ -121,15 +121,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 						<input type="password" id="sub-pod-r2-secret" name="r2_secret_key" class="regular-text" autocomplete="new-password" placeholder="<?php echo '' !== $settings['r2_secret_key'] ? '設定済み(変更するときだけ入力)' : 'シークレットアクセスキーを入力してください'; ?>">
 						<span class="sub-pod-secret-status" <?php echo '' !== $settings['r2_secret_key'] ? '' : 'hidden'; ?>>✓ 設定済み</span>
 					</div>
-					<div class="nau-form-group">
-						<label for="sub-pod-r2-password">
-							暗号化パスワード <span class="required">*</span>
-							<?php echo $this->render_tooltip( 'R2 に送るファイルの暗号化に使います。12 文字以上で、Cloudflare のパスワードとは別のものにしてください。' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
-						</label>
-						<input type="password" id="sub-pod-r2-password" name="r2_password" class="regular-text" autocomplete="new-password" placeholder="<?php echo '' !== $settings['r2_password'] ? '設定済み(変更するときだけ入力)' : '12 文字以上で入力してください'; ?>">
-						<span class="sub-pod-secret-status" <?php echo '' !== $settings['r2_password'] ? '' : 'hidden'; ?>>✓ 設定済み</span>
-						<p class="description"><strong>必ず手元に控えてください。</strong>復元に必要です。サイトがなくなると一緒に失われ、忘れると R2 のバックアップは戻せません。</p>
-					</div>
+				</div>
+
+				<?php $has_password = null !== SP_Settings::password(); ?>
+				<div class="nau-form-group">
+					<label for="sub-pod-password">
+						暗号化パスワード <span class="required">*</span>
+						<?php echo $this->render_tooltip( 'すべてのバックアップの暗号化に使います。12 文字以上で、よくあるパスワードや同じ文字の繰り返しは使えません。<br>ほかのサービスのパスワードとは別のものにしてください。' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+					</label>
+					<input type="password" id="sub-pod-password" name="password" class="regular-text" autocomplete="new-password" placeholder="<?php echo $has_password ? '設定済み(変更するときだけ入力)' : '12 文字以上で入力してください'; ?>">
+					<span class="sub-pod-secret-status" <?php echo $has_password ? '' : 'hidden'; ?>>✓ 設定済み</span>
+				</div>
+				<div class="nau-form-group">
+					<label for="sub-pod-password-confirm">暗号化パスワード(確認)</label>
+					<input type="password" id="sub-pod-password-confirm" name="password_confirm" class="regular-text" autocomplete="new-password" placeholder="同じパスワードをもう一度入力してください">
+					<p class="description"><strong>必ず手元に控えてください。</strong>復元に必要です。サイトがなくなると一緒に失われ、忘れるとバックアップは戻せません。<br>変更しても、それまでのバックアップは前のパスワードのままです。</p>
 				</div>
 
 				<?php if ( defined( 'CP_VERSION' ) ) : ?>
@@ -196,7 +202,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 						バックアップファイル
 						<?php echo $this->render_tooltip( '復元の間、今のサイトは OS の一時フォルダへ退避します。途中で PC が落ちると、再起動で消えて元に戻せないことがあります。大事なサイトは先にバックアップを取ってください。' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 					</label>
-					<input type="file" id="sub-pod-restore-file" accept=".gz,.enc,application/gzip" hidden>
+					<input type="file" id="sub-pod-restore-file" accept=".enc" hidden>
 					<div class="nau-image-upload-area" id="sub-pod-restore-drop">
 						<div class="nau-image-placeholder" id="sub-pod-restore-placeholder">
 							<div class="nau-image-placeholder-text">ファイルをドロップ、または選択してください。</div>
@@ -213,8 +219,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 				<div class="nau-form-group">
 					<label for="sub-pod-restore-encryption">
-						暗号化パスワード
-						<?php echo $this->render_tooltip( 'R2 のダッシュボードからダウンロードした、暗号化されたファイル(.enc)のときだけ入力します。' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+						暗号化パスワード <span class="required">*</span>
+						<?php echo $this->render_tooltip( 'バックアップしたときに設定していた暗号化パスワードです。' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 					</label>
 					<input type="password" id="sub-pod-restore-encryption" class="regular-text" autocomplete="new-password">
 				</div>
