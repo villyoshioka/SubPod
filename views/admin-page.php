@@ -123,6 +123,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 					</div>
 				</div>
 
+				<div class="nau-form-group">
+					<label for="sub-pod-backup-name">
+						バックアップ名
+						<?php echo $this->render_tooltip( 'バックアップのファイル名の先頭に付けます。うしろには日時が付きます。<br>英数字・ハイフン・アンダーバーで、64 文字まで入力できます。空欄のときはサイトのドメイン名を使います。' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+					</label>
+					<input type="text" id="sub-pod-backup-name" name="backup_name" class="regular-text" value="<?php echo esc_attr( $settings['backup_name'] ); ?>" maxlength="64" spellcheck="false">
+				</div>
+
 				<?php $has_password = null !== SP_Settings::password(); ?>
 				<div class="nau-form-group">
 					<label for="sub-pod-password">

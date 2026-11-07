@@ -5,7 +5,7 @@
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![WordPress](https://img.shields.io/badge/WordPress-7.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.5.12%2B-blue.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/Version-1.1.0-green.svg)](https://github.com/villyoshioka/SubPod/releases)
+[![Version](https://img.shields.io/badge/Version-1.2.0-green.svg)](https://github.com/villyoshioka/SubPod/releases)
 
 > **注意**: **このプラグインについて、コードは公開していますが、サポートは行っていません。**
 
@@ -21,7 +21,7 @@ WordPress サイトのデータベースとファイルを、まるごとバッ�
 
 ## Sub Pod でできること
 
-1. サイト全体のバックアップ: データベースとファイルをすべてバックアップします。ボタンひとつで実行できます。
+1. サイト全体のバックアップ: データベースとファイルをすべてバックアップします。ボタンひとつで実行できます。ファイル名は、設定した名前（空欄ならサイトのドメイン名）と実行した日時になります。
 2. 保存先を複数選択: 次の 3 つから、いくつでも選べます。どの保存先にも、設定した暗号化パスワードで暗号化したファイルを置きます。
    - 完了時にダウンロード: できたファイルをブラウザで受け取ります。受け取らなかったファイルはサイトに残しません。
    - 特定のディレクトリ: WordPress の外にあるフォルダへ保存します。

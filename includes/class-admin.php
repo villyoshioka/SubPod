@@ -224,7 +224,7 @@ class SP_Admin {
 	public function ajax_save_settings(): void {
 		$this->authorize();
 
-		$fields = [ 'dest_download', 'dest_directory', 'dest_r2', 'cp_backup', 'directory', 'r2_account_id', 'r2_bucket', 'r2_access_key', 'r2_secret_key', 'password', 'password_confirm' ];
+		$fields = [ 'dest_download', 'dest_directory', 'dest_r2', 'cp_backup', 'backup_name', 'directory', 'r2_account_id', 'r2_bucket', 'r2_access_key', 'r2_secret_key', 'password', 'password_confirm' ];
 		$input  = [];
 		foreach ( $fields as $field ) {
 			$input[ $field ] = isset( $_POST[ $field ] ) ? wp_unslash( (string) $_POST[ $field ] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
@@ -471,7 +471,12 @@ class SP_Admin {
 			}
 		}
 
-		return $log . "\n" . implode( "\n", $this->log_lines ) . "\n";
+		$lines = array_merge(
+			array( wp_date( 'H:i:s', $this->log_started ) . ' バックアップを開始しました' ),
+			$this->log_lines,
+			array( wp_date( 'H:i:s' ) . ( null === $result ? ' バックアップに失敗しました' : ' バックアップが完了しました' ) )
+		);
+		return $log . "\n" . implode( "\n", $lines ) . "\n";
 	}
 
 	public function ajax_download(): void {

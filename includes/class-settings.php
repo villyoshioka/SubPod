@@ -15,6 +15,8 @@ class SP_Settings {
 	private const int MIN_PASSWORD_LENGTH = 12;
 	private const string INSTALL_GUARD_MARK = 'Sub Pod install guard';
 	private const string BETA_PASSWORD_HASH = '3f330cbb065e912aaa5611806f1b0183298ccf065d29931a85426b46802832d4';
+	/** パス、R2 のキー、ダウンロードのヘッダーにそのまま入るので、安全な文字だけにする */
+	public const string BACKUP_NAME_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/D';
 
 	private static ?string $work_root = null;
 
@@ -26,6 +28,7 @@ class SP_Settings {
 				'dest_directory' => false,
 				'dest_r2'        => false,
 				'cp_backup'      => true,
+				'backup_name'    => '',
 				'directory'      => '',
 				'r2_account_id'  => '',
 				'r2_bucket'      => '',
@@ -62,6 +65,7 @@ class SP_Settings {
 			'dest_r2'        => ! empty( $input['dest_r2'] ),
 			// Carry Pod がないサイトでは欄を出さないので、今の値を残す
 			'cp_backup'      => defined( 'CP_VERSION' ) ? ! empty( $input['cp_backup'] ) : $current['cp_backup'],
+			'backup_name'    => trim( (string) ( $input['backup_name'] ?? '' ) ),
 			'directory'      => self::from_terminal_form( trim( (string) ( $input['directory'] ?? '' ) ) ),
 			'r2_account_id'  => strtolower( trim( (string) ( $input['r2_account_id'] ?? '' ) ) ),
 			'r2_bucket'      => trim( (string) ( $input['r2_bucket'] ?? '' ) ),
@@ -72,6 +76,10 @@ class SP_Settings {
 
 		if ( ! $settings['dest_download'] && ! $settings['dest_directory'] && ! $settings['dest_r2'] ) {
 			return new WP_Error( 'no_destination', '保存先を1つ以上選んでください。' );
+		}
+
+		if ( '' !== $settings['backup_name'] && ! preg_match( self::BACKUP_NAME_PATTERN, $settings['backup_name'] ) ) {
+			return new WP_Error( 'backup_name', 'バックアップ名は、英数字で始まる64文字以内の英数字・ハイフン・アンダーバーで入力してください。' );
 		}
 
 		// 閉じている欄の入力で保存が止まらないよう、選んだ保存先だけを確かめる

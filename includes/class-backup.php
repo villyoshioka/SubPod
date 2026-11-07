@@ -641,8 +641,12 @@ class SP_Backup {
 	}
 
 	private static function file_name(): string {
-		$host = (string) preg_replace( '/[^a-z0-9.-]+/', '-', strtolower( (string) wp_parse_url( home_url(), PHP_URL_HOST ) ) );
-		return ( '' === $host ? 'site' : $host ) . '-' . gmdate( 'Ymd-His' ) . '.tar.gz';
+		// 保存後に書き換えられた値でもパスに入らないよう、使う時にも確かめる
+		$name = (string) SP_Settings::get_settings()['backup_name'];
+		if ( ! preg_match( SP_Settings::BACKUP_NAME_PATTERN, $name ) ) {
+			$name = (string) preg_replace( '/[^a-z0-9.-]+/', '-', strtolower( (string) wp_parse_url( home_url(), PHP_URL_HOST ) ) );
+		}
+		return ( '' === $name ? 'site' : $name ) . '-' . wp_date( 'Ymd-His' ) . '.tar.gz';
 	}
 
 	private static function is_inside( string $path, string $parent ): bool {
