@@ -65,7 +65,13 @@ class SP_Backup {
 
 		try {
 			@set_time_limit( 0 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
-			$result = ( new self() )->run( $destinations );
+			// Carry Pod が進捗ゲージに出す
+			$result = ( new self() )->run(
+				$destinations,
+				static function ( string $message, int $percent ): void {
+					do_action( 'sp_backup_progress', $message, $percent );
+				}
+			);
 			delete_option( self::ERROR_OPTION );
 			// Carry Pod がログに残す
 			do_action( 'sp_backup_completed', $result );

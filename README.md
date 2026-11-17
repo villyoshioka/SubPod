@@ -5,7 +5,7 @@
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![WordPress](https://img.shields.io/badge/WordPress-7.0%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.5.12%2B-blue.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/Version-1.2.0-green.svg)](https://github.com/villyoshioka/SubPod/releases)
+[![Version](https://img.shields.io/badge/Version-1.2.1-green.svg)](https://github.com/villyoshioka/SubPod/releases)
 
 > **注意**: **このプラグインについて、コードは公開していますが、サポートは行っていません。**
 
